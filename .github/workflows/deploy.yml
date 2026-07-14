@@ -1,0 +1,75 @@
+name: Deploy to GitHub Pages
+
+on:
+    schedule:
+        - cron: '0 22 * * *' # UTC 22:00 = 北京时间次日 6:00
+    workflow_dispatch:
+        inputs:
+            topic:
+                description: '搜索主题（留空则为默认热点新闻）'
+                required: false
+                type: string
+    push:
+        branches: [main]
+
+permissions:
+    contents: write
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 2
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Determine if generation is needed
+              id: check
+              run: |
+                  if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+                    echo "generate=true" >> $GITHUB_OUTPUT
+                    echo "reason=scheduled or manual trigger" >> $GITHUB_OUTPUT
+                  else
+                    # push 事件：检查是否是仅 content/*.md 的变更
+                    NON_MD_COUNT=$(git diff --name-only HEAD~1 HEAD | grep -v '^content/' | grep -v '^$' | wc -l)
+                    if [[ "$NON_MD_COUNT" -gt 0 ]]; then
+                      echo "generate=true" >> $GITHUB_OUTPUT
+                      echo "reason=code changes detected ($NON_MD_COUNT files)" >> $GITHUB_OUTPUT
+                    else
+                      echo "generate=false" >> $GITHUB_OUTPUT
+                      echo "reason=only content files changed, skipping generation" >> $GITHUB_OUTPUT
+                    fi
+                  fi
+
+            - name: Generate report
+              if: steps.check.outputs.generate == 'true'
+              env:
+                  AI_API_KEY: ${{ secrets.AI_API_KEY }}
+              run: |
+                  echo "Generating... (reason: ${{ steps.check.outputs.reason }})"
+                  if [[ -n "${{ github.event.inputs.topic }}" ]]; then
+                    npx tsx scripts/generate.ts --topic "${{ github.event.inputs.topic }}"
+                  else
+                    npx tsx scripts/generate.ts
+                  fi
+
+            - name: Build static site
+              env:
+                  NEXT_PUBLIC_BASE_PATH: /NextDaily
+              run: npm run build
+
+            - name: Deploy to GitHub Pages
+              uses: peaceiris/actions-gh-pages@v4
+              with:
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+                  publish_dir: ./out

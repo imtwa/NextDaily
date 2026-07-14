@@ -1,0 +1,40 @@
+{
+    "name": "next-daily",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build && node scripts/clean-out.js",
+        "start": "next start",
+        "lint": "eslint .",
+        "generate": "npx tsx scripts/generate.ts",
+        "generate:build": "node scripts/generate-and-build.js",
+        "deploy": "node scripts/trigger-deploy.js",
+        "lintfix": "prettier --write ."
+    },
+    "dependencies": {
+        "@ai-sdk/deepseek": "^0.2.0",
+        "ai": "^4.3.0",
+        "dotenv": "^17.4.2",
+        "gray-matter": "^4.0.3",
+        "lucide-react": "^0.468.0",
+        "next": "^16.2.10",
+        "next-themes": "^0.4.6",
+        "react": "^19.2.7",
+        "react-dom": "^19.2.7",
+        "react-markdown": "^9.0.3",
+        "remark-gfm": "^4.0.0"
+    },
+    "devDependencies": {
+        "@tailwindcss/typography": "^0.5.16",
+        "@types/node": "^22.0.0",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "eslint": "^9.0.0",
+        "eslint-config-next": "^16.2.10",
+        "prettier": "^3.9.5",
+        "tailwindcss": "^3.4.0",
+        "tsx": "^4.19.0",
+        "typescript": "^5.7.0"
+    }
+}
