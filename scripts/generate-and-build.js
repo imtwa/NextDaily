@@ -23,3 +23,5 @@ execSync(`npx tsx scripts/generate.ts ${quoted}`, { stdio: 'inherit' });
 
 // Step 2: 构建 Next.js（build 脚本自带 clean-out 清理）
 execSync('npm run build', { stdio: 'inherit' });
+
+// Step 3: 卡片图片由浏览器端 Canvas 渲染（在报告详情页预览和下载）

@@ -1,4 +1,17 @@
 /**
+ * AI 客户端模块
+ *
+ * 基于 Vercel AI SDK 封装，提供两个核心能力：
+ *   generateText() — 通用聊天补全（Stage 1 关键词生成、Stage 3 过滤排序）
+ *   webSearch()   — DeepSeek 联网搜索（Stage 2 并发搜索）
+ *
+ * 切换 AI 供应商（DeepSeek → OpenAI 等）只需修改本文件：
+ *   1. 导入对应的 provider（如 createOpenAI）
+ *   2. 修改 chatModel 中的模型名
+ *   3. webSearch 需替换为对应的联网搜索实现
+ */
+
+/**
  * 统一 AI 客户端模块
  *
  * 基于 Vercel AI SDK 封装，提供供应商无关的 AI 调用能力。
@@ -128,7 +141,7 @@ export async function webSearch(query: string): Promise<string> {
 
     const today = getBeijingNow();
     const dateStr = `${today.getFullYear()}年${String(today.getMonth() + 1).padStart(2, '0')}月${String(today.getDate()).padStart(2, '0')}日`;
-    const fullQuery = `搜索以下关键词，只返回昨天(${dateStr}前1天)和今天(${dateStr})的最新新闻。每条新闻标注具体时间（如「7月14日凌晨」「7月15日上午」），无时间的标「时间未明确」。保留原标题和简述原文。禁止使用emoji。\n\n关键词: ${query}`;
+    const fullQuery = `搜索以下关键词，只返回昨天(${dateStr}前1天)和今天(${dateStr})的最新新闻。每条新闻标注具体时间（如「7月14日凌晨」「7月15日上午」），无时间的标「时间未明确」。禁止使用emoji。\n\n关键词: ${query}`;
 
     // 联网搜索使用 DeepSeek Anthropic 兼容端点 + tool_use
     for (let attempt = 0; attempt < 2; attempt++) {

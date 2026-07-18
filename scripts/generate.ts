@@ -3,7 +3,7 @@
  * 每日信息差报告生成器 — CLI 入口
  *
  * 用法:
- *   npx tsx scripts/generate.ts                      # 默认热点新闻
+ *   npx tsx scripts/generate.ts                      # 默认A股消息
  *   npx tsx scripts/generate.ts --topic "二次元"     # 按主题搜索
  *   npx tsx scripts/generate.ts --direct "AI政策, 芯片"  # 手动指定搜索词
  *   npx tsx scripts/generate.ts --no-filter          # 跳过 Stage 3 AI 过滤
@@ -17,6 +17,7 @@
 import './env';  // 统一加载 .env* 文件（必须在其他 import 之前）
 import path from 'node:path';
 import { runPipeline } from './pipeline';
+import { getBeijingNow } from './ai-client';
 
 // ─── 参数解析 ───────────────────────────────────────────────────────────
 
@@ -93,15 +94,12 @@ async function main() {
     console.log('='.repeat(50));
     console.log('  每日信息差搜集 - Next.js 版');
     console.log(
-        `  时间: ${new Date(Date.now() + 8 * 60 * 60 * 1000)
-            .toISOString()
-            .replace('T', ' ')
-            .slice(0, 16)}`
+        `  时间: ${(() => { const d = getBeijingNow(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}`
     );
     if (topic) {
         console.log(`  主题: ${topic}`);
     } else {
-        console.log('  模式: 默认热点新闻');
+        console.log('  模式: 默认A股消息');
     }
     console.log('  流程: 词库生成 → 并发搜索 → AI过滤排序');
     console.log('='.repeat(50));

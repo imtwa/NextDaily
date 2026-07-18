@@ -5,7 +5,7 @@
  * 从本地通过 GitHub API 触发云端的 "Deploy to GitHub Pages" workflow。
  *
  * 用法:
- *   node scripts/trigger-deploy.js                 # 默认热点新闻
+ *   node scripts/trigger-deploy.js                 # 默认A股消息
  *   node scripts/trigger-deploy.js "新能源车"       # 携带搜索主题
  *   npm run deploy                                 # 快捷命令
  *   npm run deploy "AI芯片"                        # 携带主题的快捷命令
@@ -68,7 +68,7 @@ if (TOPIC) {
     payload.inputs = { topic: TOPIC };
     console.log(`触发云端构建 | 仓库: ${OWNER}/${REPO} | 主题: ${TOPIC}`);
 } else {
-    console.log(`触发云端构建 | 仓库: ${OWNER}/${REPO} | 模式: 默认热点新闻`);
+    console.log(`触发云端构建 | 仓库: ${OWNER}/${REPO} | 模式: 默认A股消息`);
 }
 
 // -------- 调用 API --------

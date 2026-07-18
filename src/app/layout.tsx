@@ -19,7 +19,7 @@ import './globals.css';
 /** 站点 SEO 元数据 */
 export const metadata: Metadata = {
     title: '每日信息差 — AI 驱动的每日新闻简报',
-    description: '自动搜集全球热点新闻，AI 过滤排序，每日更新。覆盖国内政策、国际局势、科技产业、金融市场、社会民生。'
+    description: '自动搜集A股市场最新消息，AI 过滤排序，每日更新。覆盖国内政策、国际局势、科技产业、金融市场、社会民生。'
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

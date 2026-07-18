@@ -1,204 +1,150 @@
-# 每日信息差 -- Next.js 版
+# 每日信息差 (NextDaily)
 
-AI 驱动的每日新闻简报：自动拆解搜索词库 -> 并发联网搜索 -> 智能过滤排序 -> 静态页面展示。
-全程零服务器成本，基于 GitHub Pages 免费托管。
+自动搜集 A 股市场最新消息，AI 过滤排序，生成每日信息差报告和抖音发布素材。
 
-## 架构概览
+## 项目主旨
+
+面向信息差类自媒体博主，提供从信息搜集到内容发布的**全自动化工具链**：
+- AI 联网搜索 A 股市场关键消息
+- 智能去重、过滤、排序
+- 生成 Markdown 报告 + 可复制发布文案
+- 生成 1080x1350 竖版卡片图片（可一键下载，适配抖音轮播帖）
+- 静态网站展示归档
+
+## 技术架构
 
 ```
-                                ┌──────────────────────┐
-                                │   GitHub Actions     │
-                                │   (CI/CD 自动化)      │
-                                │                      │
-                                │  定时/手动 -> 搜索+打包 │
-                                │  push MD  -> 仅打包   │
-                                └────────┬─────────────┘
-                                         │
-                    ┌────────────────────┼────────────────────┐
-                    ▼                    ▼                    ▼
-           ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-           │  scripts/     │    │  src/        │    │  content/    │
-           │  AI 生成脚本   │───>│  Next.js     │───>│  MD 报告     │
-           │  (TS + AI SDK)│    │  (React SPA) │    │  (Git 版本化) │
-           └──────────────┘    └──────┬───────┘    └──────────────┘
-                                      │
-                                      │ next build (static export)
-                                      ▼
-                               ┌──────────────┐
-                               │  out/        │
-                               │  纯静态站点   │
-                               │  HTML+CSS+JS │
-                               └──────┬───────┘
-                                      │
-                                      ▼
-                               ┌──────────────┐
-                               │  GitHub Pages│
-                               │  (免费托管)   │
-                               └──────────────┘
+搜索词库生成 → 5 路并发搜索 → AI 过滤排序 → 格式化报告 → 静态网站构建
+                                                         → 卡片图片（浏览器端 Canvas）
 ```
+
+### 四阶段流水线
+
+| 阶段 | 模块 | 说明 |
+|------|------|------|
+| Stage 1 | `pipeline.ts` | 根据主题（或默认 A 股词库）生成 5 组搜索关键词 |
+| Stage 2 | `search-engine.ts` + `ai-client.ts` | 5 路并发调用 DeepSeek 联网搜索 |
+| Stage 3 | `pipeline.ts` | AI 从搜索结果中提取、去重、排序，输出 JSON |
+| Stage 4 | `search-engine.ts` | 格式化 Markdown 报告，写入 `content/` 目录 |
+
+### AI 供应商
+
+当前使用 DeepSeek (`deepseek-v4-flash`)，通过 Vercel AI SDK 调用。
+切换供应商只需修改 `scripts/ai-client.ts` 中的 provider 创建逻辑。
+
+### 图片生成
+
+卡片图片在**浏览器端**使用 Canvas 渲染，不产生本地文件：
+- 预览：服务端生成纯 HTML/CSS 卡片（零 hydration 风险）
+- 下载：原生 JS 读取 DOM 中的数据属性，在 Canvas 上绘制 1080x1350 PNG
+- 批量下载：顺序触发所有下载按钮
 
 ## 项目结构
 
 ```
 NextDaily/
-├── scripts/                          # AI 生成脚本（独立于 Next.js）
-│   ├── generate.ts                   #   CLI 入口
-│   ├── ai-client.ts                  #   统一 AI 客户端 (Vercel AI SDK)
-│   ├── pipeline.ts                   #   四阶段流水线编排
-│   ├── search-engine.ts              #   并发搜索执行器
-│   ├── prompts.ts                    #   提示词加载器
-│   ├── prompts/                      #   提示词模板
-│   │   ├── keyword-generation.md     #     Stage 1: 主题 -> 词库矩阵
-│   │   └── filter-sort.md            #     Stage 3: 过滤 + 排序
-│   └── trigger-deploy.js             #   远程触发 GitHub Actions
-│
-├── content/                          # 每日 MD 报告（Git 追踪）
-│   ├── 2026-07-06.md                 #     默认热点新闻
-│   └── 2026-07-14-xin-neng-yuan-che.md  #  按主题的报告
-│
-├── src/                              # Next.js 前端
+├── scripts/                    # 生成流水线（Node.js 脚本）
+│   ├── generate.ts             # CLI 入口
+│   ├── generate-and-build.js   # 一键生成 + 构建
+│   ├── pipeline.ts             # 四阶段流水线编排
+│   ├── search-engine.ts        # 并发搜索 + 报告格式化
+│   ├── ai-client.ts            # AI 客户端（DeepSeek）
+│   ├── prompts.ts              # 提示词加载
+│   └── prompts/
+│       ├── filter-sort.md      # Stage 3 过滤排序提示词
+│       └── keyword-generation.md # Stage 1 关键词生成提示词
+├── src/
 │   ├── app/
-│   │   ├── layout.tsx                #     根布局 (Header + Footer + 暗色)
-│   │   ├── page.tsx                  #     首页归档列表
-│   │   ├── globals.css               #     全局样式
-│   │   └── report/[slug]/page.tsx    #     报告详情页
+│   │   ├── page.tsx            # 首页（报告归档列表）
+│   │   └── report/[slug]/page.tsx  # 报告详情页
 │   ├── components/
-│   │   ├── ui/                       #     通用 UI 组件
-│   │   ├── archive/                  #     归档相关组件
-│   │   └── report/                   #     报告详情组件
-│   └── lib/
-│       ├── types.ts                  #     类型定义
-│       └── report-utils.ts           #     MD 解析 + 数据查询
-│
-├── .github/workflows/deploy.yml      # CI/CD 自动部署
-├── next.config.ts                    #    Next.js 配置 (static export)
-├── tailwind.config.ts                #    Tailwind CSS 配置
-└── .env.local                        #    本地环境变量
+│   │   ├── archive/            # 归档组件（列表、侧边栏）
+│   │   ├── card/               # 卡片预览组件
+│   │   ├── report/             # 报告组件（文案复制、原始结果、搜索词库）
+│   │   └── ui/                 # 通用 UI（页头、页脚）
+│   └── lib/                    # 工具库（报告解析、类型定义）
+├── content/                    # 生成的 Markdown 报告
+├── public/fonts/               # 字体文件（卡片下载用）
+└── out/                        # 静态导出（构建产物）
 ```
-
-## 工作流
-
-| 场景 | 触发方式 | 行为 |
-|------|---------|------|
-| 每天 6:00 AM | GitHub Actions `schedule` | 搜索 -> 生成 MD -> 构建 -> 部署 |
-| 本地主题搜索 | `npm run generate -- --topic "xxx"` | 搜索 -> 生成 MD（本地不部署） |
-| 本地搜索+构建 | `npm run generate:build -- --topic "xxx"` | 搜索 -> 生成 MD -> 构建到 out/ |
-| 远程触发 | `npm run deploy "主题"` | 触发 GitHub Actions -> 搜索 -> 构建 -> 部署 |
-| 推送 MD 文件 | `git push`（仅 content/*.md 变更） | 跳过搜索 -> 构建 -> 部署 |
 
 ## 快速开始
 
-### 1. 环境要求
-
-- **Node.js** >= 20
-- **npm** >= 10
-
-### 2. 安装
+### 1. 环境准备
 
 ```bash
-cd D:\aProject\Node\NextDaily
-npm install
+# Node.js >= 22
+# 设置 AI API Key
+export AI_API_KEY='sk-xxx'
 ```
 
-### 3. 配置 API Key
+### 2. 安装依赖
 
 ```bash
-# .env.local 已包含模板，按需修改
-# DeepSeek: https://platform.deepseek.com
-# OpenAI:   https://platform.openai.com
-
-echo "AI_API_KEY=sk-xxx" > .env.local
+pnpm install
 ```
 
-### 4. 生成报告
+### 3. 一键生成 + 构建
 
 ```bash
-# 默认热点新闻
-npm run generate
-
-# 指定主题
-npx tsx scripts/generate.ts --topic "新能源车"
-
-# 手动指定搜索词组（逗号分隔不同搜索方向）
-npx tsx scripts/generate.ts --direct "AI政策, 芯片产业, 美联储"
-
-# 搜索 + 构建
-npm run generate:build -- --topic "二次元"
+pnpm generate:build
 ```
 
-### 5. 本地开发
+这个命令会：
+1. 执行四阶段流水线，生成报告到 `content/`
+2. 构建 Next.js 静态网站到 `out/`
+3. 卡片图片在浏览器端预览和下载，不产生本地文件
+
+### 4. 按主题生成
 
 ```bash
-npm run dev           # 启动开发服务器 http://localhost:3000
-npm run build         # 构建静态站点 -> out/
-npx serve out/        # 预览静态站点
+pnpm generate:build "新能源"
+# 或
+npx tsx scripts/generate.ts --topic "新能源"
 ```
 
-### 6. 触发云端部署
+### 5. 指定搜索词
 
 ```bash
-# 首次使用需配置 GitHub Token
-echo "GITHUB_TOKEN=ghp_你的token" >> .env.local
-
-npm run deploy                    # 默认热点
-npm run deploy "新能源车"          # 携带主题
+npx tsx scripts/generate.ts --direct "AI政策, 芯片, 新能源"
 ```
 
-## 部署到 GitHub Pages
+### 6. 跳过 AI 过滤
 
-### 首次设置
-
-1. Fork/创建仓库 `imtwa/NextDaily`（或你的仓库名）
-2. 设置 GitHub Secrets: `AI_API_KEY` 填入 DeepSeek API Key
-3. 启用 GitHub Pages: Settings -> Pages -> Source: `gh-pages` branch -> Save
-4. 修改 CI 中的 basePath（如果你的仓库名不是 `NextDaily`）:
-   - 编辑 `.github/workflows/deploy.yml`
-   - 将 `NEXT_PUBLIC_BASE_PATH: /NextDaily` 改为你的仓库名
-5. Push 到 main 分支 -- 自动触发首次部署
-
-### 之后每次
-
-- 每天 6:00 AM 自动生成并部署
-- 本地 `npm run deploy` 远程触发
-- Push 代码变更自动部署
-
-## 切换 AI 供应商
-
-编辑 `scripts/ai-client.ts`:
-
-```ts
-// DeepSeek -> OpenAI 示例
-import { createOpenAI } from '@ai-sdk/openai';
-
-const provider = createOpenAI({
-    apiKey: process.env.AI_API_KEY
-});
-
-const chatModel = provider('gpt-4o-mini');  // 改模型名
+```bash
+npx tsx scripts/generate.ts --no-filter
 ```
 
-注意: 联网搜索 (`webSearch`) 是 DeepSeek 独有功能，切换供应商后需替换实现。
+## 环境变量
 
-## 技术栈
-
-| 类别 | 选择 | 版本 |
+| 变量 | 说明 | 必填 |
 |------|------|------|
-| 框架 | Next.js (Static Export) | 16.2 |
-| 语言 | TypeScript | 5.7 |
-| 样式 | Tailwind CSS + Typography | 3.4 |
-| AI SDK | Vercel AI SDK + @ai-sdk/deepseek | 4.x |
-| Markdown | gray-matter + react-markdown | 9.x |
-| 图标 | lucide-react | 0.468 |
-| 暗色模式 | next-themes | 0.4 |
-| 脚本运行 | tsx | 4.x |
+| `AI_API_KEY` | DeepSeek API Key | 是 |
 
-## 静态导出说明
+## 发布流程
 
-构建产物 `out/` 为纯静态文件（HTML + CSS + JS），不包含:
+1. 运行 `pnpm generate:build`
+2. 打开 `out/report/2026-07-18.html`
+3. 在「发布文案」区点击「一键复制」，粘贴到抖音
+4. 在「卡片预览」区逐张下载 PNG，上传抖音轮播帖
+5. 发布
 
-- 服务端 API 路由
-- 数据库连接
-- 运行时 AI 调用
-- Node.js 依赖
+## 自定义
 
-所有数据在构建时预渲染为 HTML，浏览器端仅进行客户端搜索/过滤/暗色切换等纯前端操作。
+### 修改默认搜索词库
+
+编辑 `scripts/pipeline.ts` 中的 `defaultKeywordMatrix()` 函数。
+
+### 修改卡片样式
+
+编辑 `src/components/card/card-preview-section.tsx`：
+- 卡片 HTML 预览：`cardHtml()` 和 `coverHtml()` 函数
+- 下载 PNG 绘制：`downloadScript` 中的 Canvas 绘图逻辑
+
+### 修改发布文案格式
+
+编辑 `src/components/report/copy-text-section.tsx` 中的 `buildCopyText()` 函数。
+
+### 切换 AI 供应商
+
+编辑 `scripts/ai-client.ts`，修改 provider 和 model 配置。

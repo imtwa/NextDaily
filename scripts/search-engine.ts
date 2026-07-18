@@ -163,10 +163,6 @@ export function formatFinalReport(
     lines.push(`日期: ${dateStr} | 共 ${items.length} 条精选`);
     lines.push('');
 
-    // 重要性图例
-
-    lines.push('');
-
     // 信息差列表
     lines.push('---');
     lines.push('');
@@ -179,7 +175,7 @@ export function formatFinalReport(
             if (item.brief) {
                 // 去掉 "简述：" "原标题：" "简介：" 等前缀
                 let b = item.brief.trim();
-                b = b.replace(/^\*{0,2}(?:简述|简介|摘要|概要|原标题|原文标题|时间)\s*[:：]?\s*\*{0,2}\s*/, '');
+                b = b.replace(/^\*{0,2}(?:原文简述|简述|简介|摘要|概要|原标题|原文标题|时间)\s*[:：]?\s*\*{0,2}\s*/, '');
                 lines.push(b);
             }
             lines.push('');

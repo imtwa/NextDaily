@@ -160,7 +160,7 @@ export function getReportsByMonth(): MonthGroup[] {
 /**
  * 获取所有不重复的主题列表
  *
- * 无主题的报告统一标记为 "热点新闻"。
+ * 无主题的报告统一标记为 "A股消息"。
  *
  * @returns 主题字符串数组（热点新闻置顶）
  */
@@ -168,9 +168,9 @@ export function getAllTopics(): string[] {
     const reports = getAllReports();
     const topics = new Set<string>();
     for (const r of reports) {
-        topics.add(r.topic || '热点新闻');
+        topics.add(r.topic || 'A股消息');
     }
-    return Array.from(topics).sort((a, b) => (a === '热点新闻' ? -1 : b === '热点新闻' ? 1 : a.localeCompare(b)));
+    return Array.from(topics).sort((a, b) => (a === 'A股消息' ? -1 : b === 'A股消息' ? 1 : a.localeCompare(b)));
 }
 
 /**
@@ -183,7 +183,7 @@ export function getReportsByTopic(): TopicGroup[] {
     const groups = new Map<string, ReportMeta[]>();
 
     for (const r of reports) {
-        const key = r.topic || '热点新闻';
+        const key = r.topic || 'A股消息';
         if (!groups.has(key)) {
             groups.set(key, []);
         }
@@ -191,8 +191,8 @@ export function getReportsByTopic(): TopicGroup[] {
     }
 
     const sorted = Array.from(groups.entries()).sort((a, b) => {
-        if (a[0] === '热点新闻') return -1;
-        if (b[0] === '热点新闻') return 1;
+        if (a[0] === 'A股消息') return -1;
+        if (b[0] === 'A股消息') return 1;
         return b[1].length - a[1].length;
     });
 
@@ -235,7 +235,7 @@ export function searchReports(query: string): ReportMeta[] {
 export function getStats(): { totalReports: number; coverageDays: number; totalTopics: number } {
     const reports = getAllReports();
     const dates = new Set(reports.map(r => r.date));
-    const topics = new Set(reports.map(r => r.topic || '热点新闻'));
+    const topics = new Set(reports.map(r => r.topic || 'A股消息'));
     return {
         totalReports: reports.length,
         coverageDays: dates.size,

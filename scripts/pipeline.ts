@@ -10,7 +10,7 @@
  *   Stage 3 — AI 过滤旧闻 + 热度排序（剔除三天前旧闻，去重合并）
  *   Stage 4 — 格式化 Markdown 报告 + 写入 content/ 目录
  *
- * 无主题时跳过 Stage 1 的 AI 调用，直接使用内置的默认热点新闻词库。
+ * 无主题时跳过 Stage 1 的 AI 调用，直接使用内置的默认A股消息搜索词库。
  */
 
 import { generateText, getBeijingNow, getTokenStats } from './ai-client';
@@ -25,10 +25,10 @@ import {
 import fs from 'node:fs';
 import path from 'node:path';
 
-// ─── 默认热点新闻词库 ───────────────────────────────────────────────────
+// ─── 默认A股消息搜索词库 ───────────────────────────────────────────────────
 
 /**
- * 当用户未指定主题时使用的默认热点新闻搜索词库
+ * 当用户未指定主题时使用的默认A股消息搜索词库
  *
  * 覆盖五大维度：国内政策、国际局势、科技产业、金融市场、社会民生。
  * 每个维度是一组独立的关键词列表，用于 Stage 2 并发搜索。
@@ -37,11 +37,11 @@ import path from 'node:path';
  */
 function defaultKeywordMatrix(): string[][] {
     return [
-        ['A股', '政策', '利好', '利空', '监管', '新规', '最新消息'],
-        ['A股', '产业', '行业', '新能源', '半导体', 'AI', '大消息'],
-        ['A股', '公司', '公告', '业绩', '重组', '大单', '热点'],
-        ['A股', '国际市场', '美股', '美联储', '贸易', '地缘', '影响'],
-        ['A股', '经济数据', 'GDP', 'CPI', '社融', '利率', '汇率']
+        ['A股', '政策', '利好', '利空', '监管', '新规', '突发', '公告', '最新消息'],
+        ['A股', '行业', '新能源', '半导体', 'AI', '医药', '消费', '房地产', '重磅'],
+        ['A股', '上市公司', '业绩预告', '并购重组', '大单', '分红', '回购', '热点'],
+        ['国际市场', '美股', '美联储', '关税', '贸易', '地缘', '中概股', '影响A股'],
+        ['A股', '资本市场', 'IPO', '退市', '证监会', '交易所', '新规', '改革']
     ];
 }
 
@@ -251,7 +251,7 @@ async function stage3FilterSort(
     const keywordsOverview = keywordMatrix.map((kw, i) => `${i + 1}. ${kw.join(' ')}`).join('\n');
 
     const userPrompt = `今日日期: ${dateStr}
-搜索主题: ${topic || '每日热点新闻'}
+搜索主题: ${topic || 'A股消息报'}
 共 ${results.length} 路搜索，原始内容 ${totalChars} 字。
 
 === 搜索词库 ===
@@ -356,26 +356,15 @@ function parseItemsJson(response: string): NewsItem[] {
  * @returns 简易的新闻条目列表
  */
 /**
- * 从原始搜索结果中提取并解析新闻条目
+ * 从原始搜索结果中提取新闻条目（降级方案）
  *
- * 当 AI 过滤排序失败时使用此降级方案。
- * 搜索结果通常包含规范的 Markdown 格式新闻（### N. 标题 + 时间/来源/简述），
- * 解析器提取这些结构化条目并做去重和排序。
+ * 当 AI 过滤排序失败时使用。搜索结果通常包含 Markdown 格式新闻，
+ * 解析器提取结构化条目并做去重。
  *
  * @param results - 原始搜索结果列表
  *
- * @returns 解析后的新闻条目列表（按重要性排序）
+ * @returns 解析后的新闻条目列表
  */
-function truncateBrief(t: string, max = 50): string {
-    t = t.trim();
-    if (t.length <= max) return t;
-    // 在 max 字范围内找最近的句号/分号/逗号断句
-    const cut = t.slice(0, max);
-    const lastPeriod = Math.max(cut.lastIndexOf('。'), cut.lastIndexOf('；'), cut.lastIndexOf('，'));
-    if (lastPeriod > 10) return t.slice(0, lastPeriod + 1);
-    return cut + '…';
-}
-
 function fallbackItems(results: SearchResult[]): NewsItem[] {
     const seen = new Set<string>();
     const items: NewsItem[] = [];
@@ -387,8 +376,6 @@ function fallbackItems(results: SearchResult[]): NewsItem[] {
             const key = item.title.slice(0, 20).replace(/[\s#*_]/g, '');
             if (!seen.has(key) && item.title.length > 2) {
                 seen.add(key);
-                // 简单重要性评分
-                if (item.brief) item.brief = truncateBrief(item.brief, 50);
                 items.push(item);
             }
         }
@@ -447,7 +434,7 @@ function parseItemsFromRawText(text: string): NewsItem[] {
         if (briefMatch) {
             // 去掉 "原标题：" "简述：" "时间：" 等前缀
             let briefVal = briefMatch[1].trim();
-            briefVal = briefVal.replace(/^(?:简述|简介|摘要|概要|原标题|原文标题|时间)\s*[:：]\s*/, '');
+            briefVal = briefVal.replace(/^(?:原文简述|简述|简介|摘要|概要|原标题|原文标题|时间)\s*[:：]\s*/, '');
             current.brief = briefVal;
             continue;
         }
@@ -456,7 +443,7 @@ function parseItemsFromRawText(text: string): NewsItem[] {
         // 如果 current 还没有 brief，且不是标题行，也不是时间/来源行，尝试作为补充
         if (!current.brief && line.length > 10 && !line.startsWith('#') && !line.match(/[*-]?\s*\*{0,2}(?:时间)\*{0,2}/)) {
             let briefVal = line.replace(/^[*-]\s*/, '');
-            briefVal = briefVal.replace(/^(?:简述|简介|摘要|概要|原标题|原文标题|时间)\s*[:：]\s*/, '');
+            briefVal = briefVal.replace(/^(?:原文简述|简述|简介|摘要|概要|原标题|原文标题|时间)\s*[:：]\s*/, '');
             current.brief = briefVal.slice(0, 200);
         }
     }
@@ -469,20 +456,6 @@ function parseItemsFromRawText(text: string): NewsItem[] {
     return items;
 }
 
-/**
- * 基于关键词的简单重要性评分
- *
- * 使用标题和简介中的关键词判断新闻重要等级:
- * - S级（置顶）：国家级领导人、战争/冲突、重大政策
- * - A级：部委动态、知名企业、重要外交
- * - B级：行业新闻、一般性动态
- * - C级：其他
- *
- * @param title - 新闻标题
- * @param brief - 新闻简述
- *
- * @returns 重要性等级: S | A | B | C
- */
 function stage4FormatAndWrite(
     dateStr: string,
     topic: string,

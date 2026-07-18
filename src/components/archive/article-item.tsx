@@ -17,7 +17,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function ArticleItem({ report }: { report: ReportMeta }) {
-    const label = report.topic || '热点新闻';
+    const label = report.topic || 'A股消息';
 
     return (
         <a

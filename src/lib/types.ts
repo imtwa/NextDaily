@@ -55,7 +55,7 @@ export interface MonthGroup {
 
 /** 按主题分组的报告 — 首页"按主题"视图 */
 export interface TopicGroup {
-    /** 主题名，无主题时为 "热点新闻" */
+    /** 主题名，无主题时为 "A股消息" */
     topic: string;
     reports: ReportMeta[];
 }
