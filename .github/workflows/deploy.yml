@@ -56,17 +56,18 @@ jobs:
                   cp -r content /tmp/nextdaily-deploy/ 2>/dev/null || true
                   cp -r out /tmp/nextdaily-deploy/ 2>/dev/null || true
 
+                  # 清理 master 上的 content/out，避免切分支冲突
+                  rm -rf content out
+
                   # 切换到 gh-pages，不存在则创建
                   if git fetch origin gh-pages 2>/dev/null; then
                     git checkout gh-pages 2>/dev/null || git checkout -b gh-pages origin/gh-pages
+                    git rebase origin/gh-pages 2>/dev/null || true
                   else
                     git checkout --orphan gh-pages
                     git rm -rf --quiet . 2>/dev/null || true
                     git commit --allow-empty -m "init"
                   fi
-
-                  # 清空旧内容（只删 git 追踪的文件，不动 node_modules / .env 等）
-                  git ls-files -z | xargs -0 rm -f 2>/dev/null || true
 
                   # 拷回 content 和 out
                   mkdir -p content out
@@ -74,9 +75,13 @@ jobs:
                   cp -r /tmp/nextdaily-deploy/out/* . 2>/dev/null || true
                   rm -rf /tmp/nextdaily-deploy
 
-                  # 增量提交
-                  git add content/ ./*.html ./*.txt _next/ report/ 2>/dev/null || true
-                  git add .
+                  # 只 add content 和 out 的文件，绝不 git add .
+                  git add content/
+
+                  # add out/ 里的文件和目录（排除 node_modules）
+                  for f in $(ls out 2>/dev/null); do
+                    git add "$f" 2>/dev/null || true
+                  done
 
                   DATE=$(TZ='Asia/Shanghai' date +%Y-%m-%d)
                   if [[ -n "$TOPIC" ]]; then
