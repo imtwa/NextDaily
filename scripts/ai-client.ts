@@ -67,7 +67,7 @@ export function getBeijingNow(): Date {
     const now = new Date();
     const localOffset = now.getTimezoneOffset(); // 本地与 UTC 的分钟差，UTC+8 为 -480
     const beijingOffset = -480; // 北京 UTC+8
-    const diff = beijingOffset - localOffset; // 需要调整的分钟数
+    const diff = localOffset - beijingOffset; // 需要调整的分钟数
     return diff === 0 ? now : new Date(now.getTime() + diff * 60 * 1000);
 }
 
