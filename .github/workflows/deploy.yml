@@ -1,12 +1,13 @@
 name: Deploy to GitHub Pages
 
+# 触发条件：定时（每天北京时间 6:00）+ 手动触发
 on:
     schedule:
         - cron: '0 22 * * *'
     workflow_dispatch:
         inputs:
             topic:
-                description: '主题'
+                description: '搜索主题（留空为 A 股消息）'
                 required: false
                 type: string
 
@@ -17,19 +18,21 @@ jobs:
     deploy:
         runs-on: ubuntu-latest
         steps:
-            - name: Checkout
+            # ===== 构建阶段 =====
+
+            - name: 检出代码
               uses: actions/checkout@v4
 
-            - name: Setup Node.js
+            - name: 安装 Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: '20'
                   cache: 'npm'
 
-            - name: Install dependencies
+            - name: 安装依赖
               run: npm ci
 
-            - name: Generate report
+            - name: 生成报告
               env:
                   AI_API_KEY: ${{ secrets.AI_API_KEY }}
               run: |
@@ -39,26 +42,29 @@ jobs:
                     npx tsx scripts/generate.ts
                   fi
 
-            - name: Build static site
+            - name: 构建静态站点
               env:
                   NEXT_PUBLIC_BASE_PATH: /NextDaily
               run: npm run build
 
-            - name: Deploy to gh-pages
+            # ===== 部署阶段 =====
+
+            - name: 部署到 gh-pages（增量提交）
               env:
                   TOPIC: ${{ github.event.inputs.topic }}
               run: |
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
 
-                  # 备份 content 和 out
+                  # 1. 备份 content、out、.gitignore
                   cp -r content /tmp/content-bak
                   cp -r out /tmp/out-bak
+                  cp .gitignore /tmp/gitignore-bak 2>/dev/null || true
 
-                  # 清理 master 的 content/out/，避免切分支冲突
+                  # 2. 清理 master 工作区，避免切分支冲突
                   rm -rf content out
 
-                  # 切到 gh-pages（首次创建，后续增量）
+                  # 3. 切到 gh-pages（首次创建，后续增量）
                   if git fetch origin gh-pages 2>/dev/null; then
                     git checkout gh-pages 2>/dev/null || git checkout -b gh-pages origin/gh-pages
                   else
@@ -66,32 +72,28 @@ jobs:
                     git rm -rf --quiet . 2>/dev/null || true
                   fi
 
-                  # 确保 .gitignore 存在
-                  cat > .gitignore << 'GITIGNORE'
-node_modules/
-.env
-.env.*
-.next/
-.DS_Store
-GITIGNORE
-
-                  # 替换 content
+                  # 4. 替换 content（保留历史 .md 文件增量）
                   rm -rf content
                   mkdir -p content
                   cp -r /tmp/content-bak/* content/ 2>/dev/null || true
                   rm -rf /tmp/content-bak
 
-                  # 展开 out 到根目录（覆盖旧的）
+                  # 5. 展开 out/ 到根目录（index.html 等直接放根目录）
                   cp -r /tmp/out-bak/* .
                   rm -rf /tmp/out-bak
 
-                  # .nojekyll
+                  # 6. 恢复 .gitignore（从 master 拷过来的）
+                  cp /tmp/gitignore-bak .gitignore 2>/dev/null || true
+                  rm -f /tmp/gitignore-bak
+
+                  # 7. 禁止 Jekyll 编译
                   touch .nojekyll
 
-                  # 增量提交
+                  # 8. 只 add 需要的文件，不碰 node_modules 等
                   git add .gitignore .nojekyll content/
                   git add index.html 404.html _next/ report/ *.txt *.xml *.json *.ico *.svg 2>/dev/null || true
 
+                  # 9. 生成提交信息（日期 + 主题）
                   DATE=$(TZ='Asia/Shanghai' date +%Y-%m-%d)
                   if [[ -n "$TOPIC" ]]; then
                     MSG="${DATE} ${TOPIC}"
@@ -99,6 +101,7 @@ GITIGNORE
                     MSG="${DATE} 每日信息差"
                   fi
 
+                  # 10. 增量提交（无变更则跳过）
                   if git diff --cached --quiet; then
                     echo "无变更，跳过提交"
                   else
