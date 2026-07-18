@@ -2,11 +2,11 @@ name: Deploy to GitHub Pages
 
 on:
     schedule:
-        - cron: '0 22 * * *' # UTC 22:00 = 北京时间次日 6:00
+        - cron: '0 22 * * *'
     workflow_dispatch:
         inputs:
             topic:
-                description: '搜索主题（留空则为默认热点新闻）'
+                description: '主题'
                 required: false
                 type: string
     push:
@@ -38,16 +38,12 @@ jobs:
               run: |
                   if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
                     echo "generate=true" >> $GITHUB_OUTPUT
-                    echo "reason=scheduled or manual trigger" >> $GITHUB_OUTPUT
                   else
-                    # push 事件：检查是否是仅 content/*.md 的变更
                     NON_MD_COUNT=$(git diff --name-only HEAD~1 HEAD | grep -v '^content/' | grep -v '^$' | wc -l)
                     if [[ "$NON_MD_COUNT" -gt 0 ]]; then
                       echo "generate=true" >> $GITHUB_OUTPUT
-                      echo "reason=code changes detected ($NON_MD_COUNT files)" >> $GITHUB_OUTPUT
                     else
                       echo "generate=false" >> $GITHUB_OUTPUT
-                      echo "reason=only content files changed, skipping generation" >> $GITHUB_OUTPUT
                     fi
                   fi
 
@@ -56,7 +52,6 @@ jobs:
               env:
                   AI_API_KEY: ${{ secrets.AI_API_KEY }}
               run: |
-                  echo "Generating... (reason: ${{ steps.check.outputs.reason }})"
                   if [[ -n "${{ github.event.inputs.topic }}" ]]; then
                     npx tsx scripts/generate.ts --topic "${{ github.event.inputs.topic }}"
                   else
@@ -68,21 +63,37 @@ jobs:
                   NEXT_PUBLIC_BASE_PATH: /NextDaily
               run: npm run build
 
-            - name: Set commit message
-              id: msg
+            - name: Deploy to gh-pages (incremental)
               run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+
+                  # 备份构建产物
+                  cp -r out /tmp/out-backup
+
+                  # 拉取 gh-pages，不存在则创建
+                  if git fetch origin gh-pages 2>/dev/null; then
+                    git checkout gh-pages 2>/dev/null || git checkout -b gh-pages origin/gh-pages
+                  else
+                    git checkout --orphan gh-pages
+                    git rm -rf --quiet . 2>/dev/null || true
+                    git commit --allow-empty -m "init"
+                  fi
+
+                  # 清理旧内容，写入新构建产物
+                  git rm -rf --quiet . 2>/dev/null || true
+                  cp -r /tmp/out-backup/* .
+                  rm -rf /tmp/out-backup
+
+                  # 增量提交
+                  git add .
                   TOPIC="${{ github.event.inputs.topic }}"
                   DATE=$(TZ='Asia/Shanghai' date +%Y-%m-%d)
                   if [[ -n "$TOPIC" ]]; then
-                    echo "msg=${DATE} ${TOPIC}" >> $GITHUB_OUTPUT
+                    MSG="${DATE} ${TOPIC}"
                   else
-                    echo "msg=${DATE} 每日信息差" >> $GITHUB_OUTPUT
+                    MSG="${DATE} 每日信息差"
                   fi
+                  git commit -m "$MSG" || echo "无变更，跳过提交"
 
-            - name: Deploy to GitHub Pages
-              uses: peaceiris/actions-gh-pages@v4
-              with:
-                  github_token: ${{ secrets.GITHUB_TOKEN }}
-                  publish_dir: ./out
-                  force_orphan: false
-                  commit_message: ${{ steps.msg.outputs.msg }}
+                  git push origin gh-pages
