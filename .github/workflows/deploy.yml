@@ -10,6 +10,11 @@ on:
                 description: '搜索主题（留空为 A 股消息）'
                 required: false
                 type: string
+            deploy_only:
+                description: '仅部署（跳过生成和构建）'
+                required: false
+                type: boolean
+                default: false
 
 permissions:
     contents: write
@@ -33,6 +38,7 @@ jobs:
               run: npm ci
 
             - name: 生成报告
+              if: ${{ !github.event.inputs.deploy_only }}
               env:
                   AI_API_KEY: ${{ secrets.AI_API_KEY }}
               run: |
@@ -43,6 +49,7 @@ jobs:
                   fi
 
             - name: 构建静态站点
+              if: ${{ !github.event.inputs.deploy_only }}
               env:
                   NEXT_PUBLIC_BASE_PATH: /NextDaily
               run: npm run build

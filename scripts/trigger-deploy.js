@@ -60,12 +60,19 @@ if (!GITHUB_TOKEN) {
 
 // -------- 构建请求 --------
 
+const DEPLOY_ONLY = process.argv.includes('--deploy-only');
+
 const payload = {
-    ref: 'master'
+    ref: 'master',
+    inputs: {}
 };
 
-if (TOPIC) {
-    payload.inputs = { topic: TOPIC };
+if (TOPIC) payload.inputs.topic = TOPIC;
+if (DEPLOY_ONLY) payload.inputs.deploy_only = 'true';
+
+if (DEPLOY_ONLY) {
+    console.log(`触发仅部署 | 仓库: ${OWNER}/${REPO}`);
+} else if (TOPIC) {
     console.log(`触发云端构建 | 仓库: ${OWNER}/${REPO} | 主题: ${TOPIC}`);
 } else {
     console.log(`触发云端构建 | 仓库: ${OWNER}/${REPO} | 模式: 默认A股消息`);
