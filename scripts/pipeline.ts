@@ -260,7 +260,7 @@ ${keywordsOverview}
 === 原始搜索结果 ===
 ${searchContext}
 
-请筛选新闻条目（只需筛选排序，不要改写标题和简述，保留原始素材的原文）。过滤掉昨天之前的旧闻（只保留昨天和今天），去重合并，按重要性排序后输出 JSON。至少输出 10 条。`;
+请筛选新闻条目（只需筛选排序，不要改写标题和简述，保留原始素材的原文）。过滤掉昨天之前的旧闻（只保留昨天和今天），去重合并，按重要性排序后输出 JSON。输出 10 到 12 条。`;
 
     try {
         const response = await generateText(FILTER_SORT_PROMPT, userPrompt, {
@@ -382,7 +382,7 @@ function fallbackItems(results: SearchResult[]): NewsItem[] {
     }
 
     console.log(`  降级解析完成: ${items.length} 条`);
-    return items.slice(0, 20);
+    return items.slice(0, 12);
 }
 
 /**
