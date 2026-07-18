@@ -13,7 +13,7 @@
  * 无主题时跳过 Stage 1 的 AI 调用，直接使用内置的默认热点新闻词库。
  */
 
-import { generateText, getBeijingNow } from './ai-client';
+import { generateText, getBeijingNow, getTokenStats } from './ai-client';
 import { KEYWORD_GEN_PROMPT, FILTER_SORT_PROMPT } from './prompts';
 import {
     executeSearches,
@@ -37,11 +37,11 @@ import path from 'node:path';
  */
 function defaultKeywordMatrix(): string[][] {
     return [
-        ['国内', '重大政策', '国务院', '新规', '热点新闻'],
-        ['国际', '地缘政治', '外交', '冲突', '最新动态'],
-        ['科技', 'AI', '人工智能', '半导体', '互联网', '最新消息'],
-        ['财经', '股市', '经济数据', '企业动态', '市场热点'],
-        ['社会', '民生', '天气', '公共卫生', '热点事件']
+        ['A股', '政策', '利好', '利空', '监管', '新规', '最新消息'],
+        ['A股', '产业', '行业', '新能源', '半导体', 'AI', '大消息'],
+        ['A股', '公司', '公告', '业绩', '重组', '大单', '热点'],
+        ['A股', '国际市场', '美股', '美联储', '贸易', '地缘', '影响'],
+        ['A股', '经济数据', 'GDP', 'CPI', '社融', '利率', '汇率']
     ];
 }
 
@@ -158,6 +158,36 @@ function parseKeywordMatrix(response: string): string[][] {
     const end = text.lastIndexOf(']');
     if (start !== -1 && end !== -1 && end > start) {
         text = text.slice(start, end + 1);
+    } else if (start !== -1) {
+        // JSON 可能被截断（无闭合 ]），尝试补全
+        text = text.slice(start);
+        const repairAttempts = [']', ']}', '}]', '}])'];
+        let repaired = false;
+        for (const suffix of repairAttempts) {
+            try {
+                JSON.parse(text + suffix);
+                text = text + suffix;
+                repaired = true;
+                break;
+            } catch {}
+        }
+        if (!repaired) {
+            // 逐行截断修复
+            const lines = text.split('\n');
+            for (let i = lines.length - 1; i > 0; i--) {
+                const partial = lines.slice(0, i).join('\n');
+                for (const suffix of repairAttempts) {
+                    try {
+                        JSON.parse(partial + suffix);
+                        text = partial + suffix;
+                        repaired = true;
+                        break;
+                    } catch { /* next */ }
+                }
+                if (repaired) break;
+            }
+        }
+        if (!repaired) text = '[]';
     }
 
     const data = JSON.parse(text);
@@ -239,6 +269,10 @@ ${searchContext}
         });
         const items = parseItemsJson(response);
         console.log(`  AI 过滤排序完成: ${items.length} 条`);
+        if (items.length === 0) {
+            console.warn('  [WARN] AI 返回 0 条，降级为解析器提取');
+            return fallbackItems(results);
+        }
         return items;
     } catch (e) {
         console.warn(`  [WARN] AI 过滤排序失败: ${e}，返回原始摘要`);
@@ -260,6 +294,7 @@ ${searchContext}
 function parseItemsJson(response: string): NewsItem[] {
     let text = response.trim();
 
+    // 去掉 markdown 代码块包裹
     if (text.startsWith('```')) {
         const lines = text.split('\n');
         if (lines[0].startsWith('```')) lines.shift();
@@ -267,10 +302,31 @@ function parseItemsJson(response: string): NewsItem[] {
         text = lines.join('\n').trim();
     }
 
+    // 提取 JSON 数组
     const start = text.indexOf('[');
     const end = text.lastIndexOf(']');
     if (start !== -1 && end !== -1 && end > start) {
         text = text.slice(start, end + 1);
+    } else if (start !== -1) {
+        // 截断修复：缺少闭合 ]
+        text = text.slice(start);
+        const suffixes = [']', ']}', '}]', '}])', ']\n}'];
+        let fixed = false;
+        for (const s of suffixes) {
+            try { JSON.parse(text + s); text = text + s; fixed = true; break; } catch {}
+        }
+        if (!fixed) {
+            // 逐行截断
+            const lns = text.split('\n');
+            for (let i = lns.length - 1; i > 0; i--) {
+                const p = lns.slice(0, i).join('\n');
+                for (const s of suffixes) {
+                    try { JSON.parse(p + s); text = p + s; fixed = true; break; } catch {}
+                }
+                if (fixed) break;
+            }
+        }
+        if (!fixed) text = '[]';
     }
 
     const data = JSON.parse(text);
@@ -281,10 +337,12 @@ function parseItemsJson(response: string): NewsItem[] {
 
     return data
         .filter((d: unknown): d is Record<string, unknown> => typeof d === 'object' && d !== null)
-        .map(d => ({
-            title: String(d.title ?? '').trim(),
-            brief: String(d.brief ?? '').trim()
-        }));
+        .map(d => {
+            return {
+                title: String(d.title ?? '').trim(),
+                brief: String(d.brief ?? '').trim()
+            };
+        });
 }
 
 /**
@@ -297,38 +355,133 @@ function parseItemsJson(response: string): NewsItem[] {
  *
  * @returns 简易的新闻条目列表
  */
+/**
+ * 从原始搜索结果中提取并解析新闻条目
+ *
+ * 当 AI 过滤排序失败时使用此降级方案。
+ * 搜索结果通常包含规范的 Markdown 格式新闻（### N. 标题 + 时间/来源/简述），
+ * 解析器提取这些结构化条目并做去重和排序。
+ *
+ * @param results - 原始搜索结果列表
+ *
+ * @returns 解析后的新闻条目列表（按重要性排序）
+ */
+function truncateBrief(t: string, max = 50): string {
+    t = t.trim();
+    if (t.length <= max) return t;
+    // 在 max 字范围内找最近的句号/分号/逗号断句
+    const cut = t.slice(0, max);
+    const lastPeriod = Math.max(cut.lastIndexOf('。'), cut.lastIndexOf('；'), cut.lastIndexOf('，'));
+    if (lastPeriod > 10) return t.slice(0, lastPeriod + 1);
+    return cut + '…';
+}
+
 function fallbackItems(results: SearchResult[]): NewsItem[] {
+    const seen = new Set<string>();
     const items: NewsItem[] = [];
+
     for (const r of results) {
-        const text = r.content.replace(/\n/g, ' ').replace(/#/g, '').trim();
-        if (text && !text.includes('搜索异常') && !text.includes('搜索未返回')) {
-            const brief = text.length > 80 ? text.slice(0, 80) + '...' : text;
-            items.push({
-                title: `搜索${r.index}: ${r.keywords.slice(0, 30)}`,
-                brief
-            });
+        const parsed = parseItemsFromRawText(r.content);
+        for (const item of parsed) {
+            // 去重：用标题前 20 字作为 key
+            const key = item.title.slice(0, 20).replace(/[\s#*_]/g, '');
+            if (!seen.has(key) && item.title.length > 2) {
+                seen.add(key);
+                // 简单重要性评分
+                if (item.brief) item.brief = truncateBrief(item.brief, 50);
+                items.push(item);
+            }
         }
     }
+
+    console.log(`  降级解析完成: ${items.length} 条`);
+    return items.slice(0, 20);
+}
+
+/**
+ * 从原始搜索文本中解析新闻条目
+ *
+ * 搜索文本通常格式:
+ *   ### 1. 标题文字
+ *   - **时间**：value
+ *   - **来源**：value
+ *   - **简述**：value
+ *
+ * @param text - 原始搜索返回的文本
+ *
+ * @returns 解析出的新闻条目列表
+ */
+function parseItemsFromRawText(text: string): NewsItem[] {
+    const items: NewsItem[] = [];
+    const lines = text.split('\n');
+
+    let current: { title: string; brief: string } | null = null;
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        // 匹配新条目标题: "### 1. 标题" 或 "**1. 标题**"
+        const itemMatch = line.match(/^#{1,4}\s+(\d+)[.、]?\s+(.+)/);
+        const boldMatch = line.match(/^\*{2}(\d+)[.、]?\s+(.+?)\*{2}/);
+        if (itemMatch) {
+            if (current && current.title) items.push({ title: current.title, brief: current.brief });
+            current = { title: itemMatch[2].trim(), brief: '' };
+            continue;
+        }
+        if (boldMatch && !line.includes('时间') && !line.includes('来源') && !line.includes('简述')) {
+            if (current && current.title) items.push({ title: current.title, brief: current.brief });
+            current = { title: boldMatch[2].trim(), brief: '' };
+            continue;
+        }
+
+        if (!current) continue;
+
+        // 匹配时间、来源、简述（兼容 **时间** 和 *时间* 格式）
+        const timeMatch = line.match(/[*-]?\s*\*{1,2}时间\*{1,2}\s*[:：]?\s*(.+)/);
+        const briefMatch = line.match(/[*-]?\s*\*{1,2}简述\*{1,2}\s*[:：]?\s*(.+)/);
+
+        if (timeMatch) {
+            // 时间信息暂时不单独存，但保留在 brief 中
+            continue;
+        }
+        if (briefMatch) {
+            // 去掉 "原标题：" "简述：" "时间：" 等前缀
+            let briefVal = briefMatch[1].trim();
+            briefVal = briefVal.replace(/^(?:简述|简介|摘要|概要|原标题|原文标题|时间)\s*[:：]\s*/, '');
+            current.brief = briefVal;
+            continue;
+        }
+
+        // 有些格式内容是: "- **标题**：" 或 "- 内容"
+        // 如果 current 还没有 brief，且不是标题行，也不是时间/来源行，尝试作为补充
+        if (!current.brief && line.length > 10 && !line.startsWith('#') && !line.match(/[*-]?\s*\*{0,2}(?:时间)\*{0,2}/)) {
+            let briefVal = line.replace(/^[*-]\s*/, '');
+            briefVal = briefVal.replace(/^(?:简述|简介|摘要|概要|原标题|原文标题|时间)\s*[:：]\s*/, '');
+            current.brief = briefVal.slice(0, 200);
+        }
+    }
+
+    // 写入最后一个条目
+    if (current && current.title) {
+        items.push({ title: current.title, brief: current.brief });
+    }
+
     return items;
 }
 
-// ─── Stage 4: 格式化输出 ───────────────────────────────────────────────
-
 /**
- * Stage 4 — 拼接最终的 Markdown 报告并写入 content/ 目录
+ * 基于关键词的简单重要性评分
  *
- * 生成 YAML frontmatter（供 Next.js 构建时读取元数据）+
- * Markdown 正文（供详情页渲染）。
+ * 使用标题和简介中的关键词判断新闻重要等级:
+ * - S级（置顶）：国家级领导人、战争/冲突、重大政策
+ * - A级：部委动态、知名企业、重要外交
+ * - B级：行业新闻、一般性动态
+ * - C级：其他
  *
- * @param dateStr       - 日期字符串
- * @param topic         - 搜索主题
- * @param keywordMatrix - 搜索词库矩阵
- * @param items         - Stage 3 过滤排序后的新闻条目
- * @param results       - Stage 2 原始搜索结果
- * @param contentDir    - content/ 目录的绝对路径
- * @param slug          - 文件名 slug（不含 .md 扩展名）
+ * @param title - 新闻标题
+ * @param brief - 新闻简述
  *
- * @returns 完整的 Markdown 报告文本
+ * @returns 重要性等级: S | A | B | C
  */
 function stage4FormatAndWrite(
     dateStr: string,
@@ -337,26 +490,32 @@ function stage4FormatAndWrite(
     items: NewsItem[],
     results: SearchResult[],
     contentDir: string,
-    slug: string
+    slug: string,
+    tokenStats?: { promptTokens: number; completionTokens: number }
 ): string {
     console.log('[Stage 4] 格式化报告...');
 
     // 生成 YAML frontmatter
     const keywordsYaml = keywordMatrix.map(kw => `  - [${kw.map(k => `"${k}"`).join(', ')}]`).join('\n');
 
+    const tokenLine = tokenStats
+        ? `\ntokenPrompt: ${tokenStats.promptTokens}\ntokenCompletion: ${tokenStats.completionTokens}`
+        : '';
     const frontmatter = `---
 title: "${topic ? `每日信息差 - ${topic}` : '每日信息差'}"
 date: "${dateStr}"
 topic: "${topic}"
 itemCount: ${items.length}
 keywords:
-${keywordsYaml}
+${keywordsYaml}${tokenLine}
 ---`;
 
     const body = formatFinalReport(dateStr, topic, keywordMatrix, items, results);
     const fullMd = `${frontmatter}\n\n${body}`;
 
     const filePath = path.join(contentDir, `${slug}.md`);
+    // 确保 content/ 目录存在
+    fs.mkdirSync(contentDir, { recursive: true });
     fs.writeFileSync(filePath, fullMd, 'utf-8');
 
     console.log(`  报告已保存: ${filePath} (${fullMd.length} 字, ${items.length} 条)`);
@@ -439,7 +598,8 @@ export async function runPipeline(
     // Stage 4: 格式化 — slug 格式: 日期-主题 或 仅日期
     const slug = dateStr + (topic ? `-${slugify(topic)}` : '');
 
-    const report = stage4FormatAndWrite(dateStr, topic || '', keywordMatrix, items, results, contentDir, slug);
+    const { promptTokens, completionTokens } = getTokenStats();
+    const report = stage4FormatAndWrite(dateStr, topic || '', keywordMatrix, items, results, contentDir, slug, { promptTokens, completionTokens });
     const t4 = Date.now();
 
     // 汇总日志
@@ -454,7 +614,10 @@ export async function runPipeline(
     console.log(`  搜索组数:         ${keywordMatrix.length}`);
     console.log(`  搜索结果:         ${results.length} 路`);
     console.log(`  过滤后条数:       ${items.length} 条`);
+    // Token 统计
+    const { promptTokens: totalPromptIn, completionTokens: totalCompletionOut } = getTokenStats();
     console.log(`  报告字数:         ${report.length} 字`);
+    console.log(`  总 token:         ${totalPromptIn} in / ${totalCompletionOut} out`);
     console.log('='.repeat(50));
 
     return {

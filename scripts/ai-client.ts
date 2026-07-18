@@ -27,6 +27,22 @@ const provider = createDeepSeek({
 /** 默认聊天模型 */
 const chatModel = provider('deepseek-v4-flash');
 
+// ─── Token 统计 ────────────────────────────────────────────────────────
+
+/** 累计输入 token 数 */
+let totalPromptTokens = 0;
+/** 累计输出 token 数 */
+let totalCompletionTokens = 0;
+
+/**
+ * 获取 Token 统计（用于流水线汇总）
+ *
+ * @returns 累计的输入/输出 token 数
+ */
+export function getTokenStats(): { promptTokens: number; completionTokens: number } {
+    return { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens };
+}
+
 // ─── 北京时间 ───────────────────────────────────────────────────────────
 
 /**
@@ -35,7 +51,11 @@ const chatModel = provider('deepseek-v4-flash');
  * @returns 北京时区的 Date 对象
  */
 export function getBeijingNow(): Date {
-    return new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const now = new Date();
+    const localOffset = now.getTimezoneOffset(); // 本地与 UTC 的分钟差，UTC+8 为 -480
+    const beijingOffset = -480; // 北京 UTC+8
+    const diff = beijingOffset - localOffset; // 需要调整的分钟数
+    return diff === 0 ? now : new Date(now.getTime() + diff * 60 * 1000);
 }
 
 // ─── 通用聊天补全 ───────────────────────────────────────────────────────
@@ -73,6 +93,15 @@ export async function generateText(
         maxTokens: options?.maxTokens ?? 16384,
         temperature: options?.temperature ?? 0.6
     });
+
+    const usage = result.usage;
+    if (usage) {
+        const inTokens = usage.promptTokens ?? 0;
+        const outTokens = usage.completionTokens ?? 0;
+        totalPromptTokens += inTokens;
+        totalCompletionTokens += outTokens;
+        console.log(`  [token] generateText: ${inTokens} in / ${outTokens} out`);
+    }
 
     return result.text;
 }
@@ -129,9 +158,17 @@ export async function webSearch(query: string): Promise<string> {
                 return '';
             }
 
-            const data = (await resp.json()) as {
-                content?: Array<{ type: string; text?: string; name?: string }>;
-            };
+            const data = (await resp.json()) as any;
+
+            // 打印 token 消耗（DeepSeek Anthropic 兼容端点返回 usage）
+            const usage = data?.usage;
+            if (usage) {
+                const inTokens = usage.input_tokens ?? usage.inputTokens ?? 0;
+                const outTokens = usage.output_tokens ?? usage.outputTokens ?? 0;
+                totalPromptTokens += inTokens;
+                totalCompletionTokens += outTokens;
+                console.log(`  [token] webSearch: ${inTokens} in / ${outTokens} out`);
+            }
 
             const parts: string[] = [];
             for (const block of data.content ?? []) {

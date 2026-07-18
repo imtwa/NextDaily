@@ -27,7 +27,7 @@ export interface SearchResult {
 export interface NewsItem {
     /** 新闻标题 */
     title: string;
-    /** 一句话简述（40 字以内） */
+    /** 一句话简述 */
     brief: string;
 }
 
@@ -157,19 +157,14 @@ export function formatFinalReport(
 ): string {
     const lines: string[] = [];
 
-    // 标题
+    // 标题 + 元信息
     const title = topic ? `# 每日信息差 - ${topic}` : '# 每日信息差';
     lines.push(title);
-    lines.push(`日期: ${dateStr}`);
-    lines.push(`共 ${items.length} 条`);
+    lines.push(`日期: ${dateStr} | 共 ${items.length} 条精选`);
     lines.push('');
 
-    // 搜索词库
-    lines.push('## 搜索词库');
-    lines.push('');
-    for (let i = 0; i < keywordMatrix.length; i++) {
-        lines.push(`${i + 1}. \`${keywordMatrix[i].join(' ')}\``);
-    }
+    // 重要性图例
+
     lines.push('');
 
     // 信息差列表
@@ -180,9 +175,12 @@ export function formatFinalReport(
 
     if (items.length > 0) {
         for (const item of items) {
-            lines.push(`- **${item.title}**`);
+            lines.push(`### ${item.title}`);
             if (item.brief) {
-                lines.push(`  > ${item.brief}`);
+                // 去掉 "简述：" "原标题：" "简介：" 等前缀
+                let b = item.brief.trim();
+                b = b.replace(/^\*{0,2}(?:简述|简介|摘要|概要|原标题|原文标题|时间)\s*[:：]?\s*\*{0,2}\s*/, '');
+                lines.push(b);
             }
             lines.push('');
         }
@@ -194,17 +192,26 @@ export function formatFinalReport(
     lines.push('---');
     lines.push('');
 
-    // 原始搜索结果 — 平铺，不折叠
+    // 搜索词库
+    lines.push('## 搜索词库');
+    lines.push('');
+    for (let i = 0; i < keywordMatrix.length; i++) {
+        lines.push(`${i + 1}. \`${keywordMatrix[i].join(' ')}\``);
+    }
+    lines.push('');
+    lines.push('---');
+    lines.push('');
+
+    // 原始搜索结果 — 完整输出，不做摘要
     lines.push('## 原始搜索结果');
     lines.push('');
     for (const r of rawResults) {
-        lines.push(`### ${r.index}. ${r.keywords}`);
+        lines.push(`### 搜索 ${r.index}. ${r.keywords}`);
         lines.push('');
         lines.push(r.content);
         lines.push('');
-    }
-
-    // 页脚免责声明
+    }    // 页脚
+    lines.push('---');
     lines.push('> **免责声明**: 本报告由 AI 自动生成，仅供信息参考。');
     lines.push('> 新闻条目经 AI 过滤排序，可能遗漏重要信息，请以原始来源为准。');
 
