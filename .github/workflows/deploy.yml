@@ -52,36 +52,45 @@ jobs:
                   git config user.email "github-actions[bot]@users.noreply.github.com"
 
                   # 备份 content 和 out
-                  mkdir -p /tmp/nextdaily-deploy
-                  cp -r content /tmp/nextdaily-deploy/ 2>/dev/null || true
-                  cp -r out /tmp/nextdaily-deploy/ 2>/dev/null || true
+                  cp -r content /tmp/content-bak
+                  cp -r out /tmp/out-bak
 
-                  # 清理 master 上的 content/out，避免切分支冲突
+                  # 清理 master 的 content/out/，避免切分支冲突
                   rm -rf content out
 
-                  # 切换到 gh-pages，不存在则创建
+                  # 切到 gh-pages（首次创建，后续增量）
                   if git fetch origin gh-pages 2>/dev/null; then
                     git checkout gh-pages 2>/dev/null || git checkout -b gh-pages origin/gh-pages
-                    git rebase origin/gh-pages 2>/dev/null || true
                   else
                     git checkout --orphan gh-pages
                     git rm -rf --quiet . 2>/dev/null || true
-                    git commit --allow-empty -m "init"
                   fi
 
-                  # 拷回 content 和 out
-                  mkdir -p content out
-                  cp -r /tmp/nextdaily-deploy/content/* content/ 2>/dev/null || true
-                  cp -r /tmp/nextdaily-deploy/out/* . 2>/dev/null || true
-                  rm -rf /tmp/nextdaily-deploy
+                  # 确保 .gitignore 存在
+                  cat > .gitignore << 'GITIGNORE'
+node_modules/
+.env
+.env.*
+.next/
+.DS_Store
+GITIGNORE
 
-                  # 只 add content 和 out 的文件，绝不 git add .
-                  git add content/
+                  # 替换 content
+                  rm -rf content
+                  mkdir -p content
+                  cp -r /tmp/content-bak/* content/ 2>/dev/null || true
+                  rm -rf /tmp/content-bak
 
-                  # add out/ 里的文件和目录（排除 node_modules）
-                  for f in $(ls out 2>/dev/null); do
-                    git add "$f" 2>/dev/null || true
-                  done
+                  # 展开 out 到根目录（覆盖旧的）
+                  cp -r /tmp/out-bak/* .
+                  rm -rf /tmp/out-bak
+
+                  # .nojekyll
+                  touch .nojekyll
+
+                  # 增量提交
+                  git add .gitignore .nojekyll content/
+                  git add index.html 404.html _next/ report/ *.txt *.xml *.json *.ico *.svg 2>/dev/null || true
 
                   DATE=$(TZ='Asia/Shanghai' date +%Y-%m-%d)
                   if [[ -n "$TOPIC" ]]; then
