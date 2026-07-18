@@ -68,8 +68,21 @@ jobs:
                   NEXT_PUBLIC_BASE_PATH: /NextDaily
               run: npm run build
 
+            - name: Set commit message
+              id: msg
+              run: |
+                  TOPIC="${{ github.event.inputs.topic }}"
+                  DATE=$(TZ='Asia/Shanghai' date +%Y-%m-%d)
+                  if [[ -n "$TOPIC" ]]; then
+                    echo "msg=${DATE} ${TOPIC}" >> $GITHUB_OUTPUT
+                  else
+                    echo "msg=${DATE} 每日信息差" >> $GITHUB_OUTPUT
+                  fi
+
             - name: Deploy to GitHub Pages
               uses: peaceiris/actions-gh-pages@v4
               with:
                   github_token: ${{ secrets.GITHUB_TOKEN }}
                   publish_dir: ./out
+                  force_orphan: false
+                  commit_message: ${{ steps.msg.outputs.msg }}
