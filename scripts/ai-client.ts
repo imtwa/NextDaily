@@ -64,11 +64,10 @@ export function getTokenStats(): { promptTokens: number; completionTokens: numbe
  * @returns 北京时区的 Date 对象
  */
 export function getBeijingNow(): Date {
+    // UTC 时间 + 8 小时 = 北京时间（参考 a-share-quant-report/scripts/ai_client.py）
     const now = new Date();
-    const localOffset = now.getTimezoneOffset(); // 本地与 UTC 的分钟差，UTC+8 为 -480
-    const beijingOffset = -480; // 北京 UTC+8
-    const diff = localOffset - beijingOffset; // 需要调整的分钟数
-    return diff === 0 ? now : new Date(now.getTime() + diff * 60 * 1000);
+    const utc = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
+    return new Date(utc + 8 * 60 * 60 * 1000);
 }
 
 // ─── 通用聊天补全 ───────────────────────────────────────────────────────
