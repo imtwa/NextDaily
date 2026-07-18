@@ -89,9 +89,8 @@ jobs:
                   # 7. 禁止 Jekyll 编译
                   touch .nojekyll
 
-                  # 8. 只 add 需要的文件，不碰 node_modules 等
-                  git add .gitignore .nojekyll content/
-                  git add index.html 404.html _next/ report/ *.txt *.xml *.json *.ico *.svg 2>/dev/null || true
+                  # 8. 添加所有文件（.gitignore 已恢复，node_modules 等自动排除）
+                  git add --all
 
                   # 9. 生成提交信息（日期 + 主题）
                   DATE=$(TZ='Asia/Shanghai' date +%Y-%m-%d)
