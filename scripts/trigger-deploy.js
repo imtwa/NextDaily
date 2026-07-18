@@ -61,7 +61,7 @@ if (!GITHUB_TOKEN) {
 // -------- 构建请求 --------
 
 const payload = {
-    ref: 'main'
+    ref: 'master'
 };
 
 if (TOPIC) {
