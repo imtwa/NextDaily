@@ -1,0 +1,25 @@
+# 环境变量
+.env.local
+.env
+.env*.local
+
+# Next.js
+.next/
+
+# 依赖
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Claude
+.claude/
+
+# Debug
+npm-debug.log*
+
+# content/ 不忽略！MD 报告需要被 git 追踪
