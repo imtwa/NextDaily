@@ -9,8 +9,6 @@ on:
                 description: '主题'
                 required: false
                 type: string
-    push:
-        branches: [master]
 
 permissions:
     contents: write
