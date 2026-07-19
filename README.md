@@ -149,6 +149,13 @@ npx tsx scripts/generate.ts --no-filter
 
 编辑 `scripts/pipeline.ts` 中的 `defaultKeywordMatrix()` 函数。
 
+默认搜索覆盖四大维度：
+
+1. **宏观与政策** — 国内经济政策、货币政策、产业政策、监管新规
+2. **财报与业绩** — 上市公司业绩预告、财报、分红回购、并购重组
+3. **产业情报** — 重点行业供需变化、技术突破、竞争格局
+4. **风险预警** — 解禁减持、融资余额、海外市场传导风险（含国际宏观补充）
+
 ### 修改卡片样式
 
 编辑 `src/components/card/card-preview-section.tsx`：
@@ -167,3 +174,32 @@ npx tsx scripts/generate.ts --no-filter
 ### 切换 AI 供应商
 
 编辑 `scripts/ai-client.ts`，修改 provider 和 model 配置。
+
+## 角色分工
+
+这个项目有两套输出，不要搞混：
+
+### 1. 卡片图片（用户看到的）
+
+生成在 `out/report/` 下的 HTML 文件中的「卡片预览」区域，浏览器端 Canvas 渲染为 PNG 图片。
+
+| 文件 | 作用 |
+|------|------|
+| `src/components/card/card-preview-section.tsx` | 卡片预览组件，包含封面图和逐条信息卡片的 HTML 结构 + Canvas 下载脚本 |
+| `public/fonts/` | Canvas 绘制中文用到的字体文件 |
+
+**封面图（cover）** 展示日期、主题和当天的完整信息差标题列表，字体放大，标题全部展示。
+**逐条卡片** 每条信息差独立一张，含序号、标题和简述。
+
+卡片图片才是最终用户看到的产出。封面图和逐条卡片一起组成抖音轮播帖。
+
+### 2. 网页（操作者看的）
+
+`out/index.html` 及其子页面是**归档和管理用途**，给发帖人自己看的：
+
+| 页面 | 作用 |
+|------|------|
+| `out/index.html` | 归档首页，按月列出所有历史报告，方便回顾和检索 |
+| `out/report/YYYY-MM-DD.html` | 单篇报告详情页，含文案复制、卡片预览下载、原始搜索记录 |
+
+网页只是操作工具，不会公开发布。所有推给用户的内容都以卡片图片形式发出。

@@ -50,10 +50,10 @@ function coverHtml(
   itemCount: number, topItems: { title: string }[]
 ): string {
   const itemsJson = encodeURIComponent(JSON.stringify(topItems.map(i => i.title)));
-  const headlines = topItems.slice(0, 5).map((item, i) =>
-    `<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px">
-      <span style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:${C.accent};color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px">${i + 1}</span>
-      <span style="font-size:14px;color:${C.body};line-height:1.5;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">${esc(item.title)}</span>
+  const headlines = topItems.map((item, i) =>
+    `<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:6px">
+      <span style="flex-shrink:0;width:24px;height:24px;border-radius:50%;background:${C.accent};color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:0">${i + 1}</span>
+      <span style="font-size:16px;color:${C.body};line-height:1.5;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;font-weight:500">${esc(item.title)}</span>
     </div>`
   ).join('');
 
@@ -62,16 +62,16 @@ function coverHtml(
   style="position:relative;width:100%;max-width:520px;padding-bottom:125%;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);background:${C.bg};font-family:'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif;">
   <div style="position:absolute;inset:0;display:flex;flex-direction:column;">
     <div style="height:5px;background:${C.accent};flex-shrink:0"></div>
-    <div style="flex:1;display:flex;flex-direction:column;padding:44px 36px 20px;position:relative;overflow:hidden">
-      <div style="position:absolute;top:-60px;right:-40px;width:200px;height:200px;border-radius:50%;background:${C.accentLight};opacity:0.4"></div>
-      <div style="text-align:center;margin-bottom:20px;z-index:1">
-        <span style="font-size:13px;font-weight:600;color:${C.tagText};background:${C.tagBg};padding:5px 18px;border-radius:6px">${esc(topic)}</span>
+    <div style="flex:1;display:flex;flex-direction:column;padding:32px 36px 16px;position:relative;overflow:hidden">
+      <span style="font-size:13px;color:${C.muted};text-align:left;margin-bottom:20px;z-index:1">每日信息差</span>
+      <div style="text-align:center;margin-bottom:20px;margin-top:8px;z-index:1">
+        <span style="font-size:14px;font-weight:600;color:${C.tagText};background:${C.tagBg};padding:6px 20px;border-radius:6px">${esc(topic)}</span>
       </div>
-      <div style="font-size:26px;font-weight:800;color:${C.title};text-align:center;margin-bottom:8px;z-index:1">${esc(reportTitle)}</div>
-      <div style="font-size:15px;color:${C.accent};text-align:center;margin-bottom:20px;z-index:1">${esc(date)}</div>
-      <div style="height:1px;background:${C.border};margin-bottom:20px;z-index:1"></div>
-      <div style="z-index:1;overflow:hidden">${headlines}</div>
-      <div style="text-align:center;font-size:12px;color:${C.muted};margin-top:auto;padding-top:16px;z-index:1">共 ${itemCount} 条精选信息</div>
+      <div style="font-size:30px;font-weight:800;color:${C.title};text-align:center;margin-bottom:10px;z-index:1">A股消息速递</div>
+      <div style="font-size:16px;color:${C.accent};text-align:center;margin-bottom:18px;z-index:1">${esc(date)}</div>
+      <div style="height:1px;background:${C.border};margin-bottom:16px;z-index:1"></div>
+      <div style="z-index:1;overflow-y:auto;flex:1">${headlines}</div>
+      <div style="text-align:center;font-size:13px;color:${C.muted};padding-top:12px;z-index:1;flex-shrink:0">共 ${itemCount} 条精选信息</div>
     </div>
     <button onclick="downloadCard(this)" data-card-dl=""
       style="margin:0 36px 20px;padding:10px 0;border:none;border-radius:8px;background:${C.accent};color:#fff;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0">
@@ -131,7 +131,7 @@ const downloadScript = `
     // bg
     ctx.fillStyle=C2.bg;ctx.fillRect(0,0,W,H);
     ctx.fillStyle=C2.accent;ctx.fillRect(0,0,W,8);
-    ctx.fillStyle=C2.accentLight;ctx.fillRect(0,8,12,H);
+    
     ctx.fillStyle=C2.accentLight;ctx.beginPath();ctx.arc(W-80,120,160,0,Math.PI*2);ctx.fill();
 
     // header
@@ -150,39 +150,54 @@ const downloadScript = `
     ctx.beginPath();ctx.moveTo(cx,176);ctx.lineTo(cx+cw,176);ctx.stroke();
 
     if (isCover) {
-      ctx.fillStyle=C2.accentLight;ctx.beginPath();ctx.arc(W/2+200,H/2+100,240,0,Math.PI*2);ctx.fill();
-      var cyy=H/2-180;
+      // 左上角品牌标识
+      ctx.font='22px "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif';
+      ctx.fillStyle=C2.muted;ctx.textAlign='left';
+      ctx.fillText('每日信息差',cx,56);
+
+      var cyy=230;
+      // topic badge
       ctx.font='28px "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif';
       var lw=ctx.measureText(topic).width;
-      rd(ctx,W/2-lw/2-28,cyy-40,lw+56,48,10);
+      rd(ctx,W/2-lw/2-28,cyy-32,lw+56,44,10);
       ctx.fillStyle=C2.tagBg;ctx.fill();
       ctx.fillStyle=C2.tagText;ctx.textAlign='center';
-      ctx.fillText(topic,W/2,cyy-40+34);
-      ctx.font='bold 56px "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif';
+      ctx.fillText(topic,W/2,cyy+2);
+      // main title: always "A股消息速递" on cover
+      ctx.font='bold 52px "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif';
       ctx.fillStyle=C2.title;ctx.textAlign='center';
-      ctx.fillText(report,W/2,cyy+60);
-      ctx.font='32px "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif';
-      ctx.fillStyle=C2.accent;ctx.fillText(date,W/2,cyy+120);
-      ctx.strokeStyle=C2.accent;ctx.lineWidth=2;
-      ctx.beginPath();ctx.moveTo(W/2-60,cyy+150);ctx.lineTo(W/2+60,cyy+150);ctx.stroke();
+      ctx.fillText('A股消息速递',W/2,cyy+80);
+      // date
+      ctx.font='28px "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif';
+      ctx.fillStyle=C2.accent;ctx.fillText(date,W/2,cyy+130);
+      // divider
+      ctx.strokeStyle=C2.border;ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(cx+40,cyy+160);ctx.lineTo(W-cx-40,cyy+160);ctx.stroke();
 
-      // headlines on cover
+      // all headlines on cover
       var hlRaw=card.getAttribute('data-headlines')||'[]';
       var headlines=[];
       try{headlines=JSON.parse(decodeURIComponent(hlRaw));}catch(e){}
-      var hlY=cyy+200;
-      ctx.font='22px "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif';
+      var hlY=cyy+205,lineH=42;
+      ctx.font='24px "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif';
       ctx.fillStyle=C2.body;
-      for(var h=0;h<Math.min(headlines.length,5);h++){
+      var maxVisible=Math.floor((H-hlY-60)/lineH);
+      var showCount=Math.min(headlines.length,maxVisible);
+      for(var h=0;h<showCount;h++){
         ctx.textAlign='left';
-        var hlX=W/2-300;
-        ctx.fillText((h+1)+'.',hlX,hlY+h*44);
-        ctx.fillText(headlines[h].length>28?headlines[h].slice(0,28)+'...':headlines[h],hlX+40,hlY+h*44);
+        var hlX=cx+20;
+        ctx.fillText((h+1)+'.',hlX,hlY+h*lineH);
+        var txt=headlines[h];
+        var maxW=(W-cx*2-20)-80;
+        while(ctx.measureText(txt).width>maxW&&txt.length>3)txt=txt.slice(0,-1);
+        if(txt.length<headlines[h].length)txt+='..';
+        ctx.fillText(txt,hlX+48,hlY+h*lineH);
       }
       ctx.textAlign='center';
-      ctx.font='24px "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif';
+      ctx.font='22px "PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif';
       ctx.fillStyle=C2.muted;
-      ctx.fillText('共 '+count+' 条精选信息',W/2,hlY+Math.min(headlines.length,5)*44+60);
+      var footY=hlY+Math.min(showCount,headlines.length)*lineH+40;
+      ctx.fillText('共 '+count+' 条精选信息',W/2,footY);
     } else {
       // 序号徽章 — 红色圆角方块 + 白色数字
       var bs=64, bxx=cx, byy=216;
@@ -240,9 +255,9 @@ export default function CardPreviewSection({ body, title, date, topic }: Props) 
   const items = parseItemsFromBody(body);
   if (items.length === 0) return null;
 
-  const topicLabel = topic || 'A股消息';
-  const reportTitle = title.replace('每日信息差 - ', '').replace('每日信息差', '信息差日报');
-  const topTitles = items.slice(0, 5);
+  const topicLabel = topic || '今日热点';
+  const reportTitle = title.replace('每日信息差 - ', '').replace('每日信息差', '每日信息差');
+  const topTitles = items;
 
   const cardsHtml = [
     coverHtml(date, topicLabel, reportTitle, items.length, topTitles),

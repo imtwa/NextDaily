@@ -25,7 +25,7 @@ function fmtDate(d: string): string {
 /** 根据主题生成标签 */
 function getTags(topic: string): string[] {
   const tags = ['每日信息差', '今日热点'];
-  if (!topic) { tags.push("财经"); return tags; }
+  if (!topic) { tags.push("A股", "财经"); return tags; }
   const t = topic.toLowerCase();
   if (t.includes('股') || t.includes('a股')) tags.push('A股', '财经新闻');
   else if (t.includes('科技') || t.includes('ai')) tags.push('科技', 'AI');
