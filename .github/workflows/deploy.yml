@@ -3,7 +3,7 @@ name: Deploy to GitHub Pages
 # 触发条件：定时（每天北京时间 6:00）+ 手动触发
 on:
     schedule:
-        - cron: '0 22 * * *'
+        # - cron: '0 22 * * *'
     workflow_dispatch:
         inputs:
             topic:
